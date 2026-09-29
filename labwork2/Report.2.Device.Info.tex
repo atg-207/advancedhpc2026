@@ -6,7 +6,7 @@
 \usepackage{verbatim}
 
 \title{Labwork 2: Device Info}
-\author{Nguyễn Duy Anh Tùng}
+\author{Nguyen Duy Anh Tung}
 \date{\today}
 
 \begin{document}
@@ -17,7 +17,7 @@
 The objective of this labwork is to inspect the hardware specifications of the GPU device using \texttt{numba.cuda} before implementing parallel kernels.
 
 \section{Device Specifications}
-The table below summarizes the hardware parameters queried from the system:
+The table below summarizes the key hardware parameters queried from the system:
 
 \begin{table}[ht]
 \centering
@@ -29,9 +29,10 @@ Device Name & NVIDIA GeForce GTX 1650 \\
 Device ID & 0 \\
 Compute Capability & 7.5 \\
 Multiprocessors (SMs) & 14 \\
+CUDA Cores & 896 (14 SMs $\times$ 64 cores/SM) \\
+FP32 / FP64 Performance Ratio & 32 \\
 Total Global Memory & 4.00 GB (4,294,639,616 bytes) \\
 Free Global Memory & 3.25 GB (3,489,084,212 bytes) \\
-FP32 / FP64 Performance Ratio & 32 \\
 \bottomrule
 \end{tabular}
 \caption{GPU Hardware Attributes}
@@ -55,14 +56,15 @@ Number of GPUs: 1
 GPU 0: NVIDIA GeForce GTX 1650
 ID: 0
 Multiprocessors (SMs): 14
+CUDA Cores: 896 (14 SMs x 64 cores/SM)
 Total Global Memory: 4.00 GB (4,294,639,616 bytes)
 Free Global Memory: 3.25 GB (3,489,084,212 bytes)
 \end{verbatim}
 
 \section{Discussion}
 \begin{itemize}
-    \item The NVIDIA GeForce GTX 1650 provides 14 Streaming Multiprocessors (SMs) with Compute Capability 7.5 (Turing architecture).
-    \item The system offers approximately 3.25 GB of available global memory, ensuring sufficient capacity for input/output buffers in subsequent labworks.
+    \item The NVIDIA GeForce GTX 1650 provides 14 Streaming Multiprocessors (SMs) with a total of 896 CUDA cores and compute capability 7.5.
+    \item Global memory capacity is 4.00 GB with 3.25 GB currently available, which is sufficient for loading and processing typical datasets and image buffers.
 \end{itemize}
 
 \end{document}
