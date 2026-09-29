@@ -16,12 +16,7 @@ def gpu_info():
 
         print(f"GPU {device_id}: {name}")
         print(f"ID: {device_id}")
-        print(f"Compute Capability: {device.compute_capability[0]}.{device.compute_capability[1]}")
         print(f"Multiprocessors (SMs): {device.MULTIPROCESSOR_COUNT}")
-        print(f"Warp Size: {device.WARP_SIZE}")
-        print(f"Max Threads Per Block: {device.MAX_THREADS_PER_BLOCK}")
-        print(f"Max Block Dimensions: ({device.MAX_BLOCK_DIM_X}, {device.MAX_BLOCK_DIM_Y}, {device.MAX_BLOCK_DIM_Z})")
-        print(f"Max Grid Dimensions: ({device.MAX_GRID_DIM_X}, {device.MAX_GRID_DIM_Y}, {device.MAX_GRID_DIM_Z})")
         print(f"Total Global Memory: {total_mem / (1024**3):.2f} GB ({total_mem:,} bytes)")
         print(f"Free Global Memory: {free_mem / (1024**3):.2f} GB ({free_mem:,} bytes)")
 
