@@ -1,0 +1,77 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+\usepackage{booktabs}
+\usepackage{verbatim}
+
+\title{Labwork 2: Device Info}
+\author{Nguyễn Duy Anh Tùng}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+The objective of this labwork is to inspect the hardware specifications of the GPU device using \texttt{numba.cuda} before implementing parallel kernels.
+
+\section{Device Specifications}
+The table below summarizes the key hardware parameters queried from the system:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{ll}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Device Name & NVIDIA GeForce GTX 1650 \\
+Device ID & 0 \\
+Compute Capability & 7.5 (Turing Architecture) \\
+Multiprocessors (SMs) & 14 \\
+Warp Size & 32 \\
+Max Threads Per Block & 1024 \\
+Max Block Dimensions & $(1024, 1024, 64)$ \\
+Max Grid Dimensions & $(2147483647, 65535, 65535)$ \\
+Total Global Memory & 4.00 GB (4,294,639,616 bytes) \\
+Free Global Memory & 3.25 GB (3,489,084,212 bytes) \\
+FP32 / FP64 Performance Ratio & 32 \\
+\bottomrule
+\end{tabular}
+\caption{GPU Hardware Attributes}
+\end{table}
+
+\section{Raw Output}
+\begin{verbatim}
+1. numba.cuda.detect():
+Found 1 CUDA devices
+id 0    b'NVIDIA GeForce GTX 1650'                              [SUPPORTED]
+                      Compute Capability: 7.5
+                           PCI Device ID: 0
+                              PCI Bus ID: 1
+                                    UUID: GPU-53c69ecc-dc4f-391a-8d9b-bfe9f36d443f
+                                Watchdog: Enabled
+             FP32/FP64 Performance Ratio: 32
+Summary:
+        1/1 devices are supported
+Number of GPUs: 1
+
+GPU 0: NVIDIA GeForce GTX 1650
+ID: 0
+Compute Capability: 7.5
+Multiprocessors (SMs): 14
+Warp Size: 32
+Max Threads Per Block: 1024
+Max Block Dimensions: (1024, 1024, 64)
+Max Grid Dimensions: (2147483647, 65535, 65535)
+Total Global Memory: 4.00 GB (4,294,639,616 bytes)
+Free Global Memory: 3.25 GB (3,489,084,212 bytes)
+\end{verbatim}
+
+\section{Discussion}
+\begin{itemize}
+    \item The GPU has 14 SMs with a maximum of 1024 threads per block and a warp size of 32. Block dimensions in future labworks should be selected as multiples of 32 to maximize warp occupancy.
+    \item Approximately 3.25 GB of global memory is free, providing sufficient space for input and output image buffers during kernel execution.
+\end{itemize}
+
+\end{document}
