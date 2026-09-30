@@ -16,7 +16,7 @@ def gs_cpu(flat_img):
     pixel_count = flat_img.shape[0]
     out = np.empty_like(flat_img)
     for i in range(pixel_count):
-        g = np.uint8((int(flat_img[i, 0]) + int(flat_img[i, 1]) + int(flat_img[i, 2])) // 3)
+        g = np.uint8((int(flat_img[i, 0]) + int(flat_img[i, 1]) + int(flat_img[i, 2])) / 3)
         out[i,0] = out[i,1] = out[i,2] = g
     return out
 
