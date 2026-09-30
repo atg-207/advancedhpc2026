@@ -23,12 +23,6 @@ def gs_cpu(flat_img):
 def main():
     img = plt.imread("image.jpg")
 
-    if img.shape[2] == 4:
-        img = img[:,:,:3]
-
-    if img.dtype != np. uint8:
-        img = (img*255).astype(np.uint8)
-
     h,w,c = img.shape
     pixel_count = h*w
     print(f"Pixels: {pixel_count:,}")
