@@ -5,6 +5,14 @@ import numpy as np
 from numba import cuda 
 
 @cuda.jit
+def gs_gpu(src, dst, pixel_count):
+    tidx = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
+
+    if tidx < pixel_count:
+        g = np.uint8((src[tidx, 0] + src[tidx, 1] + src[tidx, 2]) / 3)
+        dst[tidx, 0] = dst[tidx, 1] = dst[tidx, 2] = g
+
+@cuda.jit
 def gs_2d_gpu(src, dst, w, h):
     x = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
     y = cuda.threadIdx.y + cuda.blockIdx.y * cuda.blockDim.y
@@ -23,7 +31,7 @@ def gs_2d_cpu(img):
     out = np.empty_like(img)
     for y in range(h):
         for x in range(w):
-            gray = np.uint8((int(img[y, x, 0]) + int(img[y, x, 1]) + int(img[y, x, 2])) / 3)
+            gray = np.uint8((int(img[y, x, 0]) + int(img[y, x, 1]) + int(img[y, x, 2])) // 3)
             out[y, x, 0] = gray
             out[y, x, 1] = gray
             out[y, x, 2] = gray
@@ -32,8 +40,8 @@ def gs_2d_cpu(img):
 def main():
     img = plt.imread("image.jpg")
 
-    h,w,_ = img.shape
-    pixel_count = h*w
+    h, w, _ = img.shape
+    pixel_count = h * w
     print(f"Pixels: {pixel_count:,}")
 
     start_cpu = time.time()
@@ -42,59 +50,81 @@ def main():
     print(f"CPU execution time: {time_cpu:.4f}s")
     plt.imsave("output_gs_cpu.jpg", cpu_result)
 
-    dev_src = cuda.to_device(img)
-    dev_dst = cuda.device_array((h,w,3), dtype=np.uint8)
+    dev_src_2d = cuda.to_device(img)
+    dev_dst_2d = cuda.device_array((h, w, 3), dtype=np.uint8)
 
-    block_sizes = [(4, 4), (8, 8), (16, 16), (32, 16), (32, 32)] 
-    speedups = []
-    avg_gpu_times = []
-    labels = [f"{bx}x{by}" for bx, by in block_sizes]
+    flat_src = img.reshape((pixel_count, 3))
+    dev_src_1d = cuda.to_device(flat_src)
+    dev_dst_1d = cuda.device_array((pixel_count, 3), dtype=np.uint8)
+
     NUM_ITERS = 5
+    print(f"Number of iteration: {NUM_ITERS}")
 
-    grid_init = (math.ceil(w / 16), math.ceil(h / 16))
-    gs_2d_gpu[grid_init, (16, 16)](dev_src, dev_dst, w, h)
+    block_sizes_1d = [32, 64, 128, 256, 512, 1024]
+    speedups_1d = []
+    avg_times_1d = []
+    labels_1d = [str(b) for b in block_sizes_1d]
+
+    grid_init_1d = math.ceil(pixel_count / 32)
+    gs_gpu[grid_init_1d, 32](dev_src_1d, dev_dst_1d, pixel_count)
     cuda.synchronize()
 
-    print(f"Number of iteration: {NUM_ITERS}")
-    for bx, by in block_sizes:
+    print("\n1D GPU:")
+    for b_size in block_sizes_1d:
+        grid_size = math.ceil(pixel_count / b_size)
+
+        iter_times = []
+        for _ in range(NUM_ITERS):
+            start_gpu = time.time()
+            gs_gpu[grid_size, b_size](dev_src_1d, dev_dst_1d, pixel_count)
+            cuda.synchronize()
+            iter_times.append(time.time() - start_gpu)
+
+        avg_time = sum(iter_times) / NUM_ITERS
+        speedup = time_cpu / avg_time
+        avg_times_1d.append(avg_time * 1000)
+        speedups_1d.append(speedup)
+        print(f"BlockSize: {b_size:4d} | GridSize: {grid_size:6d} | GPU Time: {avg_time*1000:6.2f} ms | Speedup: {speedup:6.1f}x")
+
+    block_sizes_2d = [(4, 4), (8, 8), (16, 16), (32, 16), (32, 32)] 
+    speedups_2d = []
+    avg_times_2d = []
+    labels_2d = [f"{bx}x{by}" for bx, by in block_sizes_2d]
+
+    grid_init_2d = (math.ceil(w / 16), math.ceil(h / 16))
+    gs_2d_gpu[grid_init_2d, (16, 16)](dev_src_2d, dev_dst_2d, w, h)
+    cuda.synchronize()
+
+    print("\n2D GPU:")
+    for bx, by in block_sizes_2d:
         gx = math.ceil(w / bx)
         gy = math.ceil(h / by)
 
         iter_times = []
         for _ in range(NUM_ITERS):
             start_gpu = time.time()
-            gs_2d_gpu[(gx, gy), (bx, by)](dev_src, dev_dst, w, h)
+            gs_2d_gpu[(gx, gy), (bx, by)](dev_src_2d, dev_dst_2d, w, h)
             cuda.synchronize()
             iter_times.append(time.time() - start_gpu)
 
         avg_time = sum(iter_times) / NUM_ITERS
         speedup = time_cpu / avg_time
-
-        avg_gpu_times.append(avg_time * 1000)
-        speedups.append(speedup)
-        
+        avg_times_2d.append(avg_time * 1000)
+        speedups_2d.append(speedup)
         print(f"Block: ({bx:2d}, {by:2d}) [{bx*by:4d} th] | Grid: ({gx:4d}, {gy:4d}) | Time: {avg_time*1000:6.2f} ms | Speedup: {speedup:6.1f}x")
 
-    gpu_result = dev_dst.copy_to_host()
+    gpu_result = dev_dst_2d.copy_to_host()
     plt.imsave("output_gs_gpu.jpg", gpu_result)
 
-    fig, ax1 = plt.subplots(figsize=(10, 5))
-
-    color = 'tab:blue'
-    ax1.set_xlabel('Block Size (bx x by) [Total Threads]', fontweight='bold')
-    ax1.set_ylabel('Speedup (x CPU)', color=color, fontweight='bold')
-    line1 = ax1.plot(labels, speedups, marker='o', color=color, linewidth=2, label='Speedup')
-    ax1.tick_params(axis='y', labelcolor=color)
-    ax1.grid(True, linestyle='--', alpha=0.5)
-
-    ax2 = ax1.twinx()  
-    color = 'tab:red'
-    ax2.set_ylabel('Execution Time (ms)', color=color, fontweight='bold')
-    line2 = ax2.plot(labels, avg_gpu_times, marker='s', linestyle='--', color=color, linewidth=2, label='GPU Time')
-    ax2.tick_params(axis='y', labelcolor=color)
-
-    plt.title("2D Block Size vs Speedup and Execution Time", fontweight='bold')
-    fig.tight_layout()
+    plt.figure(figsize=(10, 5))
+    plt.plot(labels_1d, speedups_1d, marker='s', linestyle='--', color='tab:orange', linewidth=2, label='1D Speedup')
+    plt.plot(labels_2d, speedups_2d, marker='o', color='tab:blue', linewidth=2, label='2D Speedup')
+    plt.title("1D vs 2D Block Size vs Speedup", fontweight='bold')
+    plt.xlabel("Block Size Configuration", fontweight='bold')
+    plt.ylabel("Speedup (x CPU)", fontweight='bold')
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.legend()
+    plt.tight_layout()
     plt.savefig("block_size_vs_speedup.png", dpi=300)
     print("\nSucceed!!!")
 
