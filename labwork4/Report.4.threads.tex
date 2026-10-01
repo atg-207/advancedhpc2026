@@ -1,0 +1,74 @@
+\documentclass{report}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+
+\title{Labwork 4: 2D Threads Configuration}
+\author{Nguyen Duy Anh Tung}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+In Labwork 4, we extend the RGB-to-grayscale conversion by migrating from a 1D grid layout to a 2-dimensional thread and block hierarchy. The goal is to preserve the native 2D spatial representation of images, evaluate the speedup gained across various 2D block shapes, examine hardware constraints, and solve classroom exercises on thread scheduling.
+
+\section{Implementation}
+Unlike the 1D flattened array approach used in Labwork 3, the image is passed directly in its 2D matrix shape $(H, W, 3)$:
+\begin{itemize}
+    \item \textbf{CPU Implementation}: Iterates sequentially through image height ($y$) and width ($x$) using nested loops to compute grayscale intensity:
+    \[
+    g = \lfloor(R + G + B) / 3\rfloor
+    \]
+    \item \textbf{GPU Implementation}: Implements a 2D CUDA kernel where each thread calculates its 2D global coordinate:
+    \[
+    x = \text{threadIdx.x} + \text{blockIdx.x} \times \text{blockDim.x}
+    \]
+    \[
+    y = \text{threadIdx.y} + \text{blockIdx.y} \times \text{blockDim.y}
+    \]
+    A boundary check \texttt{if x < w and y < h} ensures threads beyond image borders do not perform invalid memory accesses.
+\end{itemize}
+
+\section{Experimental Results}
+Testing was conducted on an image containing $199,875$ pixels. The sequential CPU execution time was \textbf{0.2080 s} ($208.0\text{ ms}$). GPU execution times are averaged over 5 iterations.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{rrrrr}
+\toprule
+\textbf{Block Size} & \textbf{Threads/Block} & \textbf{Grid Size} & \textbf{GPU Time (ms)} & \textbf{Speedup} \\
+\midrule
+$(4, 4)$   & 16   & $(94, 134)$ & 0.20 & $1016.3\times$ \\
+$(8, 8)$   & 64   & $(47, 67)$  & 0.16 & $1329.8\times$ \\
+$(16, 16)$ & 256  & $(24, 34)$  & 0.15 & $1377.7\times$ \\
+$(32, 16)$ & 512  & $(12, 34)$  & 0.15 & $\mathbf{1393.5\times}$ \\
+$(32, 32)$ & 1024 & $(12, 17)$  & 0.16 & $1316.6\times$ \\
+\bottomrule
+\end{tabular}
+\caption{Performance comparison across different 2D block dimensions}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.8\textwidth]{block_size_vs_speedup.png}
+\caption{2D Block Size vs Speedup over CPU}
+\end{figure}
+
+\section{Hardware Limit and Crash Analysis}
+When attempting configurations such as $(64, 32)$ ($2048$ threads) or $(64, 64)$ ($4096$ threads), the kernel execution crashes with:
+\[
+\texttt{numba.cuda.cudadrv.driver.CudaAPIError: [1] CUDA\_ERROR\_INVALID\_VALUE}
+\]
+This crash occurs because NVIDIA GPU architecture strictly enforces a physical limit of \textbf{1024 threads per block} (\texttt{MAX\_THREADS\_PER\_BLOCK = 1024}). Any block launch requesting a total thread count exceeding 1024 is rejected at runtime by the CUDA driver.
+
+\section{Exercises \& Discussion}
+\begin{itemize}
+    \item \textbf{Speedup}: The 2D CUDA implementation achieves massive acceleration, delivering up to $1393.5\times$ speedup over the sequential CPU baseline.
+    \item \textbf{Occupancy \& Performance}: The $(4, 4)$ block ($16$ threads) yields lower performance ($0.20\text{ ms}$) because it is smaller than the hardware warp size ($32$ threads), leaving execution units underutilized. Peak efficiency is reached at $(32, 16)$ ($512$ threads, $0.15\text{ ms}$), achieving optimal warp scheduling and SM occupancy. At the hardware maximum $(32, 32)$ ($1024$ threads), latency slightly increases to $0.16\text{ ms}$ due to register pressure and block-scheduling overhead.
+    \item \textbf{Exercise 1}: Best configuration is \textbf{$16 \times 16$}. $32 \times 32 = 1024$ exceeds the 512 threads/block limit. $8 \times 8 = 64$ threads only yields $8 \times 64 = 512$ threads on the SM due to the 8 blocks/SM limit (50\% occupancy). $16 \times 16 = 256$ threads allows 4 blocks/SM, maximizing SM capacity at 1024 threads (100\% occupancy).
+    \item \textbf{Exercise 2}: Configuration with the most threads in the SM is \textbf{512 threads/block}. With a ceiling of 4 blocks/SM, $3 \times 512 = 1536$ threads fully saturates the SM limit without violating block constraints.
+    \item \textbf{Exercise 3}: A vector length of 2,000 with 512 threads/block requires $\lceil 2000 / 512 \rceil = 4$ blocks. Total threads in the grid $= 4 \times 512 = \mathbf{2048\text{ threads}}$.
+\end{itemize}
+
+\end{document}
