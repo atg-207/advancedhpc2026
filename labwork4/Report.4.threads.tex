@@ -62,13 +62,10 @@ When attempting configurations such as $(64, 32)$ ($2048$ threads) or $(64, 64)$
 \]
 This crash occurs because NVIDIA GPU architecture strictly enforces a physical limit of \textbf{1024 threads per block} (\texttt{MAX\_THREADS\_PER\_BLOCK = 1024}). Any block launch requesting a total thread count exceeding 1024 is rejected at runtime by the CUDA driver.
 
-\section{Exercises \& Discussion}
+\section{Discussion}
 \begin{itemize}
     \item \textbf{Speedup}: The 2D CUDA implementation achieves massive acceleration, delivering up to $1393.5\times$ speedup over the sequential CPU baseline.
     \item \textbf{Occupancy \& Performance}: The $(4, 4)$ block ($16$ threads) yields lower performance ($0.20\text{ ms}$) because it is smaller than the hardware warp size ($32$ threads), leaving execution units underutilized. Peak efficiency is reached at $(32, 16)$ ($512$ threads, $0.15\text{ ms}$), achieving optimal warp scheduling and SM occupancy. At the hardware maximum $(32, 32)$ ($1024$ threads), latency slightly increases to $0.16\text{ ms}$ due to register pressure and block-scheduling overhead.
-    \item \textbf{Exercise 1}: Best configuration is \textbf{$16 \times 16$}. $32 \times 32 = 1024$ exceeds the 512 threads/block limit. $8 \times 8 = 64$ threads only yields $8 \times 64 = 512$ threads on the SM due to the 8 blocks/SM limit (50\% occupancy). $16 \times 16 = 256$ threads allows 4 blocks/SM, maximizing SM capacity at 1024 threads (100\% occupancy).
-    \item \textbf{Exercise 2}: Configuration with the most threads in the SM is \textbf{512 threads/block}. With a ceiling of 4 blocks/SM, $3 \times 512 = 1536$ threads fully saturates the SM limit without violating block constraints.
-    \item \textbf{Exercise 3}: A vector length of 2,000 with 512 threads/block requires $\lceil 2000 / 512 \rceil = 4$ blocks. Total threads in the grid $= 4 \times 512 = \mathbf{2048\text{ threads}}$.
 \end{itemize}
 
 \end{document}
