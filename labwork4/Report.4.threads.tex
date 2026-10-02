@@ -1,5 +1,4 @@
 \documentclass{report}
-\usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{booktabs}
 
@@ -11,25 +10,28 @@
 \maketitle
 
 \section{Introduction}
-In Labwork 4, we extend the RGB-to-grayscale conversion by comparing a 1D flattened grid layout with a 2-dimensional thread and block hierarchy. The objective is to preserve the native 2D spatial representation of images, benchmark performance across various block geometries, evaluate hardware constraints, and solve classroom exercises on thread occupancy.
+In this labwork, we convert our previous 1D RGB-to-grayscale code into a 2D grid and block configuration. Instead of flattening the image into a 1D vector, we keep its native 2D matrix shape and observe how different block geometries affect running time. We also analyze hardware limits and answer the questions presented in the lecture slides.
 
 \section{Implementation}
-We benchmark two parallel CUDA approaches against a sequential CPU baseline:
+We measured the execution time of sequential CPU code against 1D and 2D CUDA kernels:
 \begin{itemize}
-    \item \textbf{Sequential CPU}: Processes the image matrix sequentially through nested height ($y$) and width ($x$) loops using the average formula $g = \lfloor(R + G + B) / 3\rfloor$.
-    \item \textbf{1D CUDA Kernel}: Uses a flattened array of size $(N, 3)$, with thread indexing $tidx = \text{threadIdx.x} + \text{blockIdx.x} \times \text{blockDim.x}$.
-    \item \textbf{2D CUDA Kernel}: Maintains the native $(H, W, 3)$ shape and computes 2D coordinates:
+    \item \textbf{CPU}: Loops sequentially over rows ($y$) and columns ($x$), computing grayscale pixel by pixel using $g = \lfloor(R + G + B) / 3\rfloor$.
+    \item \textbf{1D CUDA}: Flattens the image into size $(N, 3)$ and computes the linear index:
+    \[
+    \text{tidx} = \text{threadIdx.x} + \text{blockIdx.x} \times \text{blockDim.x}
+    \]
+    \item \textbf{2D CUDA}: Keeps the original $(H, W, 3)$ shape and calculates pixel coordinates directly in 2D:
     \[
     x = \text{threadIdx.x} + \text{blockIdx.x} \times \text{blockDim.x}
     \]
     \[
     y = \text{threadIdx.y} + \text{blockIdx.y} \times \text{blockDim.y}
     \]
-    A boundary check \texttt{if x < w and y < h} avoids out-of-bounds accesses.
+    A simple check \texttt{if x < w and y < h} ensures threads beyond the image boundaries do not write into memory.
 \end{itemize}
 
 \section{Experimental Results}
-Testing was conducted on an image with $199,875$ pixels ($H \times W$). The sequential CPU execution time was \textbf{0.1967 s} ($196.7\text{ ms}$). GPU execution times are averaged over $5$ iterations.
+The benchmark was run on an image with $199,875$ pixels ($H \times W$). The sequential CPU version took \textbf{0.1967 s} ($196.7\text{ ms}$). GPU times are the average of 5 runs.
 
 \begin{table}[htbp]
 \centering
@@ -37,7 +39,7 @@ Testing was conducted on an image with $199,875$ pixels ($H \times W$). The sequ
 \toprule
 \textbf{Configuration} & \textbf{Threads/Block} & \textbf{Grid Size} & \textbf{GPU Time (ms)} & \textbf{Speedup} \\
 \midrule
-\multicolumn{5}{l}{\textit{1D Grid Hierarchy}} \\
+\multicolumn{5}{l}{\textit{1D Grid}} \\
 32   & 32   & 6247 & 0.14 & $1449.8\times$ \\
 64   & 64   & 3124 & 0.12 & $1665.1\times$ \\
 128  & 128  & 1562 & 0.12 & $1636.7\times$ \\
@@ -45,7 +47,7 @@ Testing was conducted on an image with $199,875$ pixels ($H \times W$). The sequ
 512  & 512  & 391  & 0.12 & $\mathbf{1680.8\times}$ \\
 1024 & 1024 & 196  & 0.12 & $1587.6\times$ \\
 \midrule
-\multicolumn{5}{l}{\textit{2D Grid Hierarchy}} \\
+\multicolumn{5}{l}{\textit{2D Grid}} \\
 $(4, 4)$   & 16   & $(94, 134)$ & 0.19 & $1016.4\times$ \\
 $(8, 8)$   & 64   & $(47, 67)$  & 0.13 & $1557.6\times$ \\
 $(16, 16)$ & 256  & $(24, 34)$  & 0.13 & $1517.5\times$ \\
@@ -53,28 +55,27 @@ $(32, 16)$ & 512  & $(12, 34)$  & 0.12 & $\mathbf{1585.2\times}$ \\
 $(32, 32)$ & 1024 & $(12, 17)$  & 0.13 & $1503.1\times$ \\
 \bottomrule
 \end{tabular}
-\caption{Performance comparison between 1D and 2D CUDA configurations}
+\caption{Benchmark results for 1D and 2D CUDA configurations}
 \end{table}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.85\textwidth]{block_size_vs_speedup.png}
-\caption{1D vs 2D Block Size vs Speedup over CPU}
+\caption{Speedup comparison between 1D and 2D block sizes}
 \end{figure}
-
-\section{Hardware Limit and Crash Analysis}
-When attempting configurations such as $(64, 32)$ ($2048$ threads) or $(64, 64)$ ($4096$ threads) for 2D version and threads bigger than 1024 for 1D version, the kernel execution crashes with:
-\[
-\texttt{numba.cuda.cudadrv.driver.CudaAPIError: [1] CUDA\_ERROR\_INVALID\_VALUE}
-\]
-This occurs because the NVIDIA CUDA architecture strictly limits the maximum number of threads in a single block to \textbf{1024} (\texttt{MAX\_THREADS\_PER\_BLOCK = 1024}). Configuration $(32, 32) = 1024$ represents the maximum allowable limit.
 
 \section{Discussion}
 \begin{itemize}
-    \item \textbf{1D vs 2D Comparison}: Both layouts achieve comparable execution times ($\approx 0.12 - 0.13\text{ ms}$). The 1D layout slightly leads at peak speedup ($1680.8\times$ vs $1585.2\times$) due to flat linear indexing and continuous memory coalescing. However, 2D blocks provide natural geometric alignment for 2D spatial filtering.
-    \item \textbf{Warp Sizing}: The $(4, 4)$ block ($16$ threads) performs worse ($0.19\text{ ms}$, $1016.4\times$) because it is smaller than the hardware warp size ($32$ threads), causing half the warp execution lanes to remain idle.
-    \item \textbf{Optimal 2D Range}: Peak 2D performance occurs at $(32, 16)$ ($512$ threads, $0.12\text{ ms}$, $1585.2\times$), maintaining full warp occupancy and maximizing SM throughput.
-    \item \textbf{Square vs. Non-Square Blocks}: The non-square configuration $(32, 16)$ achieves the best 2D performance ($0.12\text{ ms}$, $1585.2\times$). In CUDA, threads along the x-dimension form consecutive memory addresses in row-major order. By setting $\text{blockDim.x} = 32$ (exactly one full warp), all 32 threads in each warp access continuous horizontal pixels in global memory simultaneously, maximizing memory coalescing. In contrast, smaller x-dimensions (such as $(8, 8)$ and $(16, 16)$) require warps to span across multiple rows or require additional block scheduling, making $(32, 16)$ slightly more hardware-friendly than symmetric square blocks.
+    \item \textbf{1D vs 2D}: Both 1D and 2D grids achieve roughly the same execution time ($\approx 0.12 - 0.13\text{ ms}$). 1D has a slightly higher peak speedup because of simpler coordinate calculation, but 2D is much cleaner and more natural for working with images.
+    \item \textbf{The $(4, 4)$ Bottleneck}: The $(4, 4)$ block performs noticeably worse ($0.19\text{ ms}$) because it only has 16 threads. As discussed in the slides, the GPU executes threads in warps of 32. Having fewer than 32 threads leaves half the warp inactive, wasting execution units.
+    \item \textbf{Hardware Limits and Crash}: Testing configurations above 1024 threads (such as $(64, 32) = 2048$ threads or $>1024$ in 1D) causes an immediate \texttt{CUDA\_ERROR\_INVALID\_VALUE} crash. This directly reflects the hardware restriction shown in the slides, where a single thread block is capped at 1024 threads.
+\end{itemize}
+
+\section{Exercise Answers}
+\begin{itemize}
+    \item \textbf{Exercise 1 (Slide 24)}: The best configuration is \textbf{$16 \times 16$}. A $32 \times 32$ block has 1024 threads, exceeding the limit of 512 threads/block. An $8 \times 8$ block has 64 threads; with 8 blocks per SM, it only reaches $8 \times 64 = 512$ threads per SM (wasting half the 1024 limit). A $16 \times 16$ block has 256 threads, so 4 blocks fully populate the SM with $4 \times 256 = 1024$ threads.
+    \item \textbf{Exercise 2 (Slide 25)}: The configuration that yields the most threads is \textbf{512 threads/block}. Since the SM can hold at most 4 blocks, $3 \times 512 = 1536$ threads, which fully reaches the 1,536 thread limit. Other choices either produce fewer threads (e.g., $4 \times 256 = 1024$) or cannot fit more than one block ($1 \times 1024 = 1024$).
+    \item \textbf{Exercise 3 (Slide 26)}: The grid contains \textbf{2048 threads}. For a vector of size 2000 and 512 threads per block, we need $\lceil 2000 / 512 \rceil = 4$ blocks. This gives $4 \times 512 = 2048$ threads in total (where 48 threads remain idle due to boundary checks).
 \end{itemize}
 
 \end{document}
